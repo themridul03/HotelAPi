@@ -1,14 +1,14 @@
 /* eslint-disable max-len */
 /* eslint-disable prettier/prettier */
+
 // internal import
 const HotelModel = require('../models/hotelModel');
 const RoomModel = require('../models/roomModel');
 
-//   The function creates a new hotel using the data from the request body and saves it to the database,
-//   returning the saved hotel as a response.
+// Create Hotel
 const createHotel = async (req, res) => {
     try {
-        const newHotel = HotelModel(req.body);
+        const newHotel = new HotelModel(req.body);
         const savedHotel = await newHotel.save();
 
         res.status(200).json({
@@ -16,22 +16,18 @@ const createHotel = async (req, res) => {
         });
     } catch (error) {
         res.status(500).json({
-            error: `Hotel not created! ${error}`,
+            error: `Hotel not created! ${error.message}`,
         });
     }
 };
 
-//  * The function `updateHotel` updates a hotel record in the database based on the provided ID and
-//  * request body.
+// Update Hotel
 const updateHotel = async (req, res) => {
     try {
         const updHotel = await HotelModel.findByIdAndUpdate(
             req.params.id,
-
-            {
-                $set: req.body,
-            },
-            { new: true },
+            { $set: req.body },
+            { new: true }
         );
 
         res.status(200).json({
@@ -44,8 +40,7 @@ const updateHotel = async (req, res) => {
     }
 };
 
-//  * The deleteHotel function deletes a hotel from the database and returns a success message if the
-//  * deletion is successful, or an error message if it fails.
+// Delete Hotel
 const deleteHotel = async (req, res) => {
     try {
         await HotelModel.findByIdAndDelete(req.params.id);
@@ -53,18 +48,23 @@ const deleteHotel = async (req, res) => {
         res.status(200).json({
             message: 'Hotel deleted successfully.',
         });
-        } catch (error) {
-                res.status(500).json({
-                    error: 'Hotel not deleted!',
-                });
-        }
+    } catch (error) {
+        res.status(500).json({
+            error: 'Hotel not deleted!',
+        });
+    }
 };
 
-//  * The function `getOneHotel` retrieves a hotel from the database based on the provided ID and returns
-//  * it as a JSON response.
+// Get One Hotel
 const getOneHotel = async (req, res) => {
     try {
         const hotel = await HotelModel.findById(req.params.id);
+
+        if (!hotel) {
+            return res.status(404).json({
+                error: 'Hotel not found!!',
+            });
+        }
 
         res.status(200).json({
             message: hotel,
@@ -73,16 +73,31 @@ const getOneHotel = async (req, res) => {
         res.status(500).json({
             error: 'Hotel not found!!',
         });
-        }
+    }
 };
 
-//  * The function `getAllHotel` retrieves hotels based on specified criteria and returns them as a JSON
-//  * response.
+// Get All Hotels
 const getAllHotel = async (req, res) => {
     const { min, max, ...others } = req.query;
 
     try {
-           const hotels = await HotelModel.find({ ...others, price: { $gt: min || 5, $lt: max || 1000 } }).limit(req.query.limit);
+        let query = { ...others };
+
+        // Apply price filter only if min or max exists
+        if (min || max) {
+            query.price = {
+                $gt: min || 1,
+                $lt: max || 10000,
+            };
+        }
+
+        const hotels = await HotelModel.find(query).limit(req.query.limit || 0);
+
+        if (!hotels || hotels.length === 0) {
+            return res.status(404).json({
+                error: 'Hotels not found!!',
+            });
+        }
 
         res.status(200).json({
             message: hotels,
@@ -91,64 +106,67 @@ const getAllHotel = async (req, res) => {
         res.status(500).json({
             error: 'Hotels not found!!',
         });
-        }
+    }
 };
 
-/**
- * The function `getHotelByCity` takes a list of cities as input and returns the count of hotels in
- * each city.
- */
+// Get Hotels By City
 const getHotelByCity = async (req, res) => {
-    const cities = req.query.cities.split(',');
+    try {
+        const cities = req.query.cities.split(',');
 
-        try {
-            const list = await Promise.all(cities.map((city) => HotelModel.countDocuments({ city })));
+        const list = await Promise.all(
+            cities.map((city) => HotelModel.countDocuments({ city }))
+        );
 
-            res.status(200).json({
-                message: list,
-            });
-        } catch (error) {
-            res.status(500).json({
-                error: 'Can not found hotel by cityname!',
-            });
-        }
+        res.status(200).json({
+            message: list,
+        });
+    } catch (error) {
+        res.status(500).json({
+            error: 'Can not found hotel by cityname!',
+        });
+    }
 };
 
-/**
- * The function `getHotelByType` retrieves the count of hotels based on their type (apartment, hotel,
- * resort, villa, cabin) and returns the counts in a JSON response.
- */
+// Get Hotels By Type
 const getHotelByType = async (req, res) => {
-        try {
-            const apartmentCount = await HotelModel.countDocuments({ type: 'apartment' });
-            const hotelCount = await HotelModel.countDocuments({ type: 'hotel' });
-            const resortCount = await HotelModel.countDocuments({ type: 'resort' });
-            const villaCount = await HotelModel.countDocuments({ type: 'villa' });
-            const cabinCount = await HotelModel.countDocuments({ type: 'cabin' });
+    try {
+        const apartmentCount = await HotelModel.countDocuments({ type: 'apartment' });
+        const hotelCount = await HotelModel.countDocuments({ type: 'hotel' });
+        const resortCount = await HotelModel.countDocuments({ type: 'resort' });
+        const villaCount = await HotelModel.countDocuments({ type: 'villa' });
+        const cabinCount = await HotelModel.countDocuments({ type: 'cabin' });
 
-            res.status(200).json({
-                message: [
-                    { type: 'apartments', count: apartmentCount },
-                    { type: 'hotels', count: hotelCount },
-                    { type: 'resorts', count: resortCount },
-                    { type: 'villas', count: villaCount },
-                    { type: 'cabins', count: cabinCount },
-                ],
-            });
-        } catch (error) {
-            res.status(500).json({
-                error: 'Can not found hotel by hotel type!',
-            });
-        }
+        res.status(200).json({
+            message: [
+                { type: 'apartments', count: apartmentCount },
+                { type: 'hotels', count: hotelCount },
+                { type: 'resorts', count: resortCount },
+                { type: 'villas', count: villaCount },
+                { type: 'cabins', count: cabinCount },
+            ],
+        });
+    } catch (error) {
+        res.status(500).json({
+            error: 'Can not found hotel by hotel type!',
+        });
+    }
 };
 
-/**
- * The function `getHotelRooms` retrieves a list of rooms for a specific hotel using the hotel's ID.
- */
+// Get Hotel Rooms
 const getHotelRooms = async (req, res) => {
     try {
         const hotel = await HotelModel.findById(req.params.id);
-        const lists = await Promise.all(hotel.rooms.map((room) => RoomModel.findById(room)));
+
+        if (!hotel) {
+            return res.status(404).json({
+                error: 'Hotel not found!',
+            });
+        }
+
+        const lists = await Promise.all(
+            hotel.rooms.map((room) => RoomModel.findById(room))
+        );
 
         res.status(200).json({
             message: lists,
